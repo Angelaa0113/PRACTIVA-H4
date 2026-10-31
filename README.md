@@ -1,0 +1,69 @@
+# Práctica 1: cola de trabajos con 4 hilos (Sistemas Operativos)
+
+Programa: `PRACTICA.py`. Ejecutar con `python PRACTICA.py`.
+
+El programa tiene una cola con 24 documentos (cada uno con un ID del 1 al 24 y un tamaño al azar de 1 a 5) y 4 trabajadores que los procesan al mismo tiempo. Se hacen 4 pruebas y en cada una cada trabajador procesa 6 documentos. Las capturas de las 4 ejecuciones están en este repositorio.
+
+## Interpretación de cada trabajador
+
+Cada trabajador es un hilo (`Thread`) que ejecuta la misma función `trabajador(nombre)`; solo cambia el nombre. Los 4 hacen lo mismo:
+
+- **Candia, Poma, Siles y Figueredo** sacan un documento de la cola con `get_nowait()`. Si la cola está vacía, atrapan `queue.Empty` y terminan.
+- Simulan el trabajo con `time.sleep(tamaño * 0.1)`, así un documento más grande tarda más.
+- Cada uno se detiene al llegar a 6 documentos procesados.
+- Al terminar guardan su lista de documentos en el diccionario compartido `resultados`, dentro de `with lock:`.
+
+Como los tamaños son al azar y los hilos avanzan a distinta velocidad, en cada prueba cambia qué documentos le tocan a cada uno, pero siempre son 6 por trabajador y 24 en total. Los documentos 1 a 4 siempre quedan para Candia, Poma, Siles y Figueredo (en ese orden), porque es el orden en que se inician los hilos y cada uno toma el primer documento disponible al arrancar.
+
+## Asignación de los 24 documentos
+
+### Prueba 1
+| Trabajador | Documentos |
+|---|---|
+| Candia | 1, 7, 10, 13, 15, 19 |
+| Poma | 2, 8, 11, 14, 18, 22 |
+| Siles | 3, 6, 9, 16, 20, 23 |
+| Figueredo | 4, 5, 12, 17, 21, 24 |
+
+### Prueba 2
+| Trabajador | Documentos |
+|---|---|
+| Candia | 1, 5, 8, 10, 15, 20 |
+| Poma | 2, 6, 11, 16, 21, 24 |
+| Siles | 3, 7, 13, 17, 19, 23 |
+| Figueredo | 4, 9, 12, 14, 18, 22 |
+
+### Prueba 3
+| Trabajador | Documentos |
+|---|---|
+| Candia | 1, 6, 8, 13, 17, 22 |
+| Poma | 2, 5, 9, 12, 15, 19 |
+| Siles | 3, 11, 16, 18, 20, 24 |
+| Figueredo | 4, 7, 10, 14, 21, 23 |
+
+### Prueba 4
+| Trabajador | Documentos |
+|---|---|
+| Candia | 1, 6, 8, 11, 13, 15 |
+| Poma | 2, 5, 7, 12, 18, 21 |
+| Siles | 3, 9, 17, 19, 20, 23 |
+| Figueredo | 4, 10, 14, 16, 22, 24 |
+
+## Verificaciones
+
+En las 4 pruebas se cumplieron:
+
+1. La suma de documentos procesados es 24 (6 por trabajador).
+2. Cada ID aparece una sola vez.
+3. Los 4 hilos terminan sin quedarse bloqueados.
+
+## Preguntas
+
+**¿Por qué queue.Queue es apropiada para compartir trabajos?**
+Porque entrega cada documento a un solo trabajador: al sacarlo de la cola ya no está para los demás, así que nadie procesa el mismo documento dos veces. Además es segura entre hilos (thread-safe), así que no hace falta proteger a mano los `put` y `get`. Con `get_nowait()` el hilo no se queda esperando: si la cola está vacía, lanza `Empty` y el trabajador termina de forma controlada. No se usa `q.empty()` como única condición de salida porque la cola puede cambiar entre la comprobación y la lectura.
+
+**¿Qué protege Lock y qué pasaría si se actualizara el resumen sin él?**
+El Lock protege el diccionario compartido `resultados`: solo un hilo a la vez puede modificarlo. Sin Lock habría una condición de carrera: dos hilos podrían leer y escribir al mismo tiempo y uno pisaría el cambio del otro, así que se podrían perder resultados o quedar un resumen incorrecto (por ejemplo, que la suma no dé 24).
+
+**¿Qué cambiarías si cada documento tuviera que guardarse en un archivo real?**
+Cada trabajador guardaría cada documento en un archivo con nombre único (por ejemplo `doc_<id>.txt`) para que dos hilos no escriban el mismo archivo. Si varios hilos escribieran en un mismo archivo (como un log), usaría un Lock para esa escritura. También manejaría errores de lectura y escritura con `try/except` y cerraría los archivos con `with open(...)`.
